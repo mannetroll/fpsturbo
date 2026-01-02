@@ -1,0 +1,361 @@
+Running N=32 ...
+ Checking CuPy...
+ CuPy not installed
+--- INITIALIZING DNS_ALL PYTHON (SciPy/CuPy) ---
+ N   = 32
+ Re  = 10000
+ K0  = 10.0
+ Steps = 101
+ CFL  = 0.75
+ requested = auto
+ backend:  auto
+ workers: 6
+ N           =          32
+ Reynolds n. =     10000.0
+ K0          =          10
+ Energy      =      0.9411
+ WiWi        =     79.0741
+ Epsilon     =      0.0837
+ a11         =     -0.0000
+ e11         =      0.0000
+ Time scale  =      5.6228
+ Kolmogorov  =      0.0109
+ Viscosity   =      0.0011
+ dx/Kol.     =     17.9980
+ 2Pi/Nlamda  =     18.2239
+ 2Pi/Lux     =     21.0882
+ 2Pi/Luz     =     34.8395
+ 2Pi/Lwx     =     34.8395
+ 2Pi/Lwz     =     21.0882
+ Deps.       =      0.0257
+ Ceps2       =      1.7270
+ E1          =      1.0000
+ E3          =      1.0000
+ PAO seed    =         549
+ PAO initialization OK. VISC=0.0010583508
+ effective = cpu (xp = scipy)
+ scipy.fft workers in-context = 6
+ [NEXTDT INIT] CFLM=    20.7196 DT=  0.0115221 CN=  1.0000000
+ Initial DT=  0.0115221 CN=  1.0000000
+ ITERATION      1 T=0.0115220546 DT=0.01153279 CN=1.00093146
+ ITERATION    100 T=1.1964105264 DT=0.01159895 CN=1.00030462
+ ITERATION    101 T=1.2080094731 DT=0.01164410 CN=1.00389297
+ Elapsed CPU time for 101 steps (s) = 0.0220803
+ Final T= 1.20801  CN= 1.00389  DT=0.0116441
+ FPS = 4574.22
+Running N=64 ...
+ Checking CuPy...
+ CuPy not installed
+--- INITIALIZING DNS_ALL PYTHON (SciPy/CuPy) ---
+ N   = 64
+ Re  = 10000
+ K0  = 10.0
+ Steps = 101
+ CFL  = 0.75
+ requested = auto
+ backend:  auto
+ workers: 6
+ N           =          64
+ Reynolds n. =     10000.0
+ K0          =          10
+ Energy      =      0.9968
+ WiWi        =     99.9812
+ Epsilon     =      0.0997
+ a11         =      0.0000
+ e11         =      0.0000
+ Time scale  =      5.0005
+ Kolmogorov  =      0.0100
+ Viscosity   =      0.0010
+ dx/Kol.     =      9.8323
+ 2Pi/Nlamda  =     18.7244
+ 2Pi/Lux     =     22.2492
+ 2Pi/Luz     =     38.5339
+ 2Pi/Lwx     =     38.5339
+ 2Pi/Lwz     =     22.2492
+ Deps.       =      0.0397
+ Ceps2       =      1.9922
+ E1          =      1.0000
+ E3          =      1.0000
+ PAO seed    =         942
+ PAO initialization OK. VISC=0.0009968943
+ effective = cpu (xp = scipy)
+ scipy.fft workers in-context = 6
+ [NEXTDT INIT] CFLM=    42.5206 DT=  0.0056145 CN=  1.0000000
+ Initial DT=  0.0056145 CN=  1.0000000
+ ITERATION      1 T=0.0056145170 DT=0.00561942 CN=1.00087320
+ ITERATION    100 T=0.6157721844 DT=0.00649000 CN=1.00521625
+ ITERATION    101 T=0.6222621858 DT=0.00652781 CN=1.00582615
+ Elapsed CPU time for 101 steps (s) = 0.0322244
+ Final T=0.622262  CN= 1.00583  DT=0.00652781
+ FPS = 3134.27
+Running N=128 ...
+ Checking CuPy...
+ CuPy not installed
+--- INITIALIZING DNS_ALL PYTHON (SciPy/CuPy) ---
+ N   = 128
+ Re  = 10000
+ K0  = 10.0
+ Steps = 101
+ CFL  = 0.75
+ requested = auto
+ backend:  auto
+ workers: 6
+ N           =         128
+ Reynolds n. =     10000.0
+ K0          =          10
+ Energy      =      0.9968
+ WiWi        =    100.0000
+ Epsilon     =      0.0997
+ a11         =      0.0000
+ e11         =      0.0000
+ Time scale  =      5.0000
+ Kolmogorov  =      0.0100
+ Viscosity   =      0.0010
+ dx/Kol.     =      4.9166
+ 2Pi/Nlamda  =     18.7245
+ 2Pi/Lux     =     22.2496
+ 2Pi/Luz     =     38.5380
+ 2Pi/Lwx     =     38.5380
+ 2Pi/Lwz     =     22.2496
+ Deps.       =      0.0397
+ Ceps2       =      1.9936
+ E1          =      1.0000
+ E3          =      1.0000
+ PAO seed    =         939
+ PAO initialization OK. VISC=0.0009968169
+ effective = cpu (xp = scipy)
+ scipy.fft workers in-context = 6
+ [NEXTDT INIT] CFLM=    73.9049 DT=  0.0032303 CN=  1.0000000
+ Initial DT=  0.0032303 CN=  1.0000000
+ ITERATION      1 T=0.0032302644 DT=0.00323295 CN=1.00083043
+ ITERATION    100 T=0.3207215655 DT=0.00329163 CN=0.99913367
+ ITERATION    101 T=0.3240131928 DT=0.00328895 CN=0.99918779
+ Elapsed CPU time for 101 steps (s) = 0.0615405
+ Final T=0.324013  CN=0.999188  DT=0.00328895
+ FPS =  1641.2
+Running N=256 ...
+ Checking CuPy...
+ CuPy not installed
+--- INITIALIZING DNS_ALL PYTHON (SciPy/CuPy) ---
+ N   = 256
+ Re  = 10000
+ K0  = 10.0
+ Steps = 101
+ CFL  = 0.75
+ requested = auto
+ backend:  auto
+ workers: 6
+ N           =         256
+ Reynolds n. =     10000.0
+ K0          =          10
+ Energy      =      0.9968
+ WiWi        =    100.0000
+ Epsilon     =      0.0997
+ a11         =     -0.0000
+ e11         =      0.0000
+ Time scale  =      5.0000
+ Kolmogorov  =      0.0100
+ Viscosity   =      0.0010
+ dx/Kol.     =      2.4583
+ 2Pi/Nlamda  =     18.7245
+ 2Pi/Lux     =     22.2496
+ 2Pi/Luz     =     38.5380
+ 2Pi/Lwx     =     38.5380
+ 2Pi/Lwz     =     22.2496
+ Deps.       =      0.0397
+ Ceps2       =      1.9936
+ E1          =      1.0000
+ E3          =      1.0000
+ PAO seed    =        2775
+ PAO initialization OK. VISC=0.0009968169
+ effective = cpu (xp = scipy)
+ scipy.fft workers in-context = 6
+ [NEXTDT INIT] CFLM=   143.6014 DT=  0.0016625 CN=  1.0000000
+ Initial DT=  0.0016625 CN=  1.0000000
+ ITERATION      1 T=0.0016624659 DT=0.00166198 CN=0.99970883
+ ITERATION    100 T=0.1594018942 DT=0.00158098 CN=1.00030282
+ ITERATION    101 T=0.1609828703 DT=0.00158145 CN=1.00030184
+ Elapsed CPU time for 101 steps (s) = 0.221481
+ Final T=0.160983  CN=  1.0003  DT=0.00158145
+ FPS = 456.021
+Running N=512 ...
+ Checking CuPy...
+ CuPy not installed
+--- INITIALIZING DNS_ALL PYTHON (SciPy/CuPy) ---
+ N   = 512
+ Re  = 10000
+ K0  = 10.0
+ Steps = 101
+ CFL  = 0.75
+ requested = auto
+ backend:  auto
+ workers: 6
+ N           =         512
+ Reynolds n. =     10000.0
+ K0          =          10
+ Energy      =      0.9968
+ WiWi        =    100.0000
+ Epsilon     =      0.0997
+ a11         =     -0.0000
+ e11         =      0.0000
+ Time scale  =      5.0000
+ Kolmogorov  =      0.0100
+ Viscosity   =      0.0010
+ dx/Kol.     =      1.2291
+ 2Pi/Nlamda  =     18.7245
+ 2Pi/Lux     =     22.2496
+ 2Pi/Luz     =     38.5380
+ 2Pi/Lwx     =     38.5380
+ 2Pi/Lwz     =     22.2496
+ Deps.       =      0.0397
+ Ceps2       =      1.9936
+ E1          =      1.0000
+ E3          =      1.0000
+ PAO seed    =         149
+ PAO initialization OK. VISC=0.0009968169
+ effective = cpu (xp = scipy)
+ scipy.fft workers in-context = 6
+ [NEXTDT INIT] CFLM=   360.4001 DT=  0.0006624 CN=  1.0000000
+ Initial DT=  0.0006624 CN=  1.0000000
+ ITERATION      1 T=0.0006624093 DT=0.00066251 CN=1.00015942
+ ITERATION    100 T=0.0683911149 DT=0.00070412 CN=1.00046737
+ ITERATION    101 T=0.0690952337 DT=0.00070445 CN=1.00046774
+ Elapsed CPU time for 101 steps (s) = 0.834249
+ Final T=0.0690952  CN= 1.00047  DT=0.000704448
+ FPS = 121.067
+Running N=1024 ...
+ Checking CuPy...
+ CuPy not installed
+--- INITIALIZING DNS_ALL PYTHON (SciPy/CuPy) ---
+ N   = 1024
+ Re  = 10000
+ K0  = 10.0
+ Steps = 101
+ CFL  = 0.75
+ requested = auto
+ backend:  auto
+ workers: 6
+ N           =        1024
+ Reynolds n. =     10000.0
+ K0          =          10
+ Energy      =      0.9968
+ WiWi        =    100.0000
+ Epsilon     =      0.0997
+ a11         =     -0.0000
+ e11         =      0.0000
+ Time scale  =      5.0000
+ Kolmogorov  =      0.0100
+ Viscosity   =      0.0010
+ dx/Kol.     =      0.6146
+ 2Pi/Nlamda  =     18.7245
+ 2Pi/Lux     =     22.2496
+ 2Pi/Luz     =     38.5380
+ 2Pi/Lwx     =     38.5380
+ 2Pi/Lwz     =     22.2496
+ Deps.       =      0.0397
+ Ceps2       =      1.9936
+ E1          =      1.0000
+ E3          =      1.0000
+ PAO seed    =        1983
+ PAO initialization OK. VISC=0.0009968169
+ effective = cpu (xp = scipy)
+ scipy.fft workers in-context = 6
+ [NEXTDT INIT] CFLM=   666.0747 DT=  0.0003584 CN=  1.0000000
+ Initial DT=  0.0003584 CN=  1.0000000
+ ITERATION      1 T=0.0003584169 DT=0.00035843 CN=1.00004592
+ ITERATION    100 T=0.0363059608 DT=0.00036914 CN=1.00038087
+ ITERATION    101 T=0.0366751027 DT=0.00036928 CN=1.00038595
+ Elapsed CPU time for 101 steps (s) =  2.87075
+ Final T=0.0366751  CN= 1.00039  DT=0.000369284
+ FPS = 35.1825
+Running N=2048 ...
+ Checking CuPy...
+ CuPy not installed
+--- INITIALIZING DNS_ALL PYTHON (SciPy/CuPy) ---
+ N   = 2048
+ Re  = 10000
+ K0  = 10.0
+ Steps = 101
+ CFL  = 0.75
+ requested = auto
+ backend:  auto
+ workers: 6
+ N           =        2048
+ Reynolds n. =     10000.0
+ K0          =          10
+ Energy      =      0.9968
+ WiWi        =    100.0000
+ Epsilon     =      0.0997
+ a11         =     -0.0000
+ e11         =      0.0000
+ Time scale  =      5.0000
+ Kolmogorov  =      0.0100
+ Viscosity   =      0.0010
+ dx/Kol.     =      0.3073
+ 2Pi/Nlamda  =     18.7245
+ 2Pi/Lux     =     22.2496
+ 2Pi/Luz     =     38.5380
+ 2Pi/Lwx     =     38.5380
+ 2Pi/Lwz     =     22.2496
+ Deps.       =      0.0397
+ Ceps2       =      1.9936
+ E1          =      1.0000
+ E3          =      1.0000
+ PAO seed    =        2960
+ PAO initialization OK. VISC=0.0009968169
+ effective = cpu (xp = scipy)
+ scipy.fft workers in-context = 6
+ [NEXTDT INIT] CFLM=  1451.8560 DT=  0.0001644 CN=  1.0000000
+ Initial DT=  0.0001644 CN=  1.0000000
+ ITERATION      1 T=0.0001644326 DT=0.00016444 CN=1.00002575
+ ITERATION    100 T=0.0165575377 DT=0.00016698 CN=1.00019076
+ ITERATION    101 T=0.0167245195 DT=0.00016701 CN=1.00018804
+ Elapsed CPU time for 101 steps (s) =  10.8477
+ Final T=0.0167245  CN= 1.00019  DT=0.000167013
+ FPS = 9.31076
+Running N=4096 ...
+ Checking CuPy...
+ CuPy not installed
+--- INITIALIZING DNS_ALL PYTHON (SciPy/CuPy) ---
+ N   = 4096
+ Re  = 10000
+ K0  = 10.0
+ Steps = 101
+ CFL  = 0.75
+ requested = auto
+ backend:  auto
+ workers: 6
+ N           =        4096
+ Reynolds n. =     10000.0
+ K0          =          10
+ Energy      =      0.9968
+ WiWi        =    100.0000
+ Epsilon     =      0.0997
+ a11         =     -0.0000
+ e11         =      0.0000
+ Time scale  =      5.0000
+ Kolmogorov  =      0.0100
+ Viscosity   =      0.0010
+ dx/Kol.     =      0.1536
+ 2Pi/Nlamda  =     18.7245
+ 2Pi/Lux     =     22.2496
+ 2Pi/Luz     =     38.5380
+ 2Pi/Lwx     =     38.5380
+ 2Pi/Lwz     =     22.2496
+ Deps.       =      0.0397
+ Ceps2       =      1.9936
+ E1          =      1.0000
+ E3          =      1.0000
+ PAO seed    =        2736
+ PAO initialization OK. VISC=0.0009968169
+ effective = cpu (xp = scipy)
+ scipy.fft workers in-context = 6
+ [NEXTDT INIT] CFLM=  2757.6887 DT=  0.0000866 CN=  1.0000000
+ Initial DT=  0.0000866 CN=  1.0000000
+ ITERATION      1 T=0.0000865697 DT=0.00008657 CN=0.99999970
+ ITERATION    100 T=0.0086565808 DT=0.00008657 CN=1.00000467
+ ITERATION    101 T=0.0087431537 DT=0.00008657 CN=1.00000467
+ Elapsed CPU time for 101 steps (s) =  49.6099
+ Final T=0.00874315  CN=       1  DT=8.65734e-05
+ FPS = 2.03588
+Done. Results written to fps_sweep_scipy.csv

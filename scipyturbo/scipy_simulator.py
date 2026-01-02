@@ -357,7 +357,7 @@ def create_dns_state(
         visc=visc,
         cflnum=CFL,
         seed_init=int(seed),
-        fft_workers=6,
+        fft_workers=5,
     )
     print(f" workers: {state.fft_workers}")
 

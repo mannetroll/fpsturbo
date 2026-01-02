@@ -27,8 +27,6 @@ for K in $(seq 5 12); do
     # Extract FPS from:  " FPS = 127.447"
     FPS=$(grep -E "FPS =" "${LOG}" | tail -n 1 | awk '{print $3}')
 
-    FPS=$(grep "Frames per second (FPS)" "${LOG}" | tail -n 1 | awk '{print $NF}')
-
     echo "${N},${FPS}" >> "${OUT_CSV}"
 done
 

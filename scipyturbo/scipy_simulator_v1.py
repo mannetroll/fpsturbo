@@ -349,7 +349,7 @@ def create_dns_state(
         visc=visc,
         cflnum=CFL,
         seed_init=int(seed),
-        fft_workers=6,
+        fft_workers=5,
     )
     print(f" workers: {state.fft_workers}")
 
@@ -480,7 +480,7 @@ def dns_pao_host_init(S: DnsState):
     RANVEC = np.zeros(97, dtype=np.float32)
 
     # "warm-up" 97 calls
-    for _ in range(99):
+    for _ in range(97):
         frand(seed)
 
     # fill RANVEC
