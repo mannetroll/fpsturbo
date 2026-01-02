@@ -1467,7 +1467,7 @@ def run_dns(
 
         print(f" Elapsed CPU time for {STEPS} steps (s) = {elap:12.4f}")
         print(f" Frames per second (FPS)                 = {fps:12.4f}")
-        print(f" Final T={S.t:12.10f}  CN={S.cn:12.10f}  DT={S.dt:12.10f}  VISC={S.visc:12.10f}")
+        print(f" Final T={S.t:12.10f}  CN={S.cn:12.10f}  DT={S.dt:12.10f}")
 
 def main():
     #
