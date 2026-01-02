@@ -24,7 +24,9 @@ for K in $(seq 5 12); do
     # Run and capture full output (run from fps/, so PYTHONPATH=..)
     stdbuf -oL env PYTHONPATH=.. uv run python -m scipyturbo.scipy_simulator "${N}" | tee "${LOG}"
 
-    # Extract FPS from: "Frames per second (FPS)                 =      73.8932"
+    # Extract FPS from:  " FPS = 127.447"
+    FPS=$(grep -E "FPS =" "${LOG}" | tail -n 1 | awk '{print $3}')
+
     FPS=$(grep "Frames per second (FPS)" "${LOG}" | tail -n 1 | awk '{print $NF}')
 
     echo "${N},${FPS}" >> "${OUT_CSV}"
