@@ -15,7 +15,7 @@ rm -f "${OUT_CSV}"
 # Header
 echo "N,FPS" > "${OUT_CSV}"
 
-for K in $(seq 5 12); do
+for K in $(seq 5 13); do
     N=$((2 ** K))
 
     LOG="fps_N${N}.log"
