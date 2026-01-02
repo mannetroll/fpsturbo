@@ -5,7 +5,7 @@ set -euo pipefail
 #  From fps/:
 #    $ nohup stdbuf -oL bash fps_sweep_cufft.sh > fps_sweep_cufft.txt 2>&1 &
 #
-#    $ PYTHONPATH=.. uv run python -m scipyturbo.scipy_simulator 512
+#    $ PYTHONPATH=.. uv run python -m scipyturbo.turbo_simulator_cufft 512
 #
 
 rm -f fps_N*.log
