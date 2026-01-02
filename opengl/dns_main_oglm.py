@@ -947,7 +947,7 @@ class MainWindow(QMainWindow):
         self._update_intervall = int(float(value))
 
     def _on_timer(self) -> None:
-        self.sim.step()
+        self.sim.step(1)
         self._status_update_counter += 1
 
         if self._status_update_counter >= self._update_intervall:
