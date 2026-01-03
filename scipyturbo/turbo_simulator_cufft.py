@@ -60,12 +60,6 @@ try:
 except Exception:
     _cpfft = None
 
-# cuFFT plan helper (GPU only): reusable explicit plans
-try:
-    import cupyx.scipy.fftpack as _cpfftpack  # type: ignore
-except Exception:
-    _cpfftpack = None
-
 
 def _fft_mod_for_state(S: "DnsState"):
     """
@@ -294,6 +288,7 @@ class DnsState:
     step3_NUM: any = None         # complex64 (NZ, NX_half)
 
     step3_mask_ix0: any = None    # bool (NZ,)
+    step3_inv_gamma0: any = None  # float32 (NZ,)  precomputed 1/gamma for ix=0 branch (0 where invalid)
     step3_divxz: any = None       # float32 scalar
 
     def sync(self):
@@ -388,8 +383,6 @@ def create_dns_state(
         plan_mod = None
         if _cpfft is not None and hasattr(_cpfft, "get_fft_plan"):
             plan_mod = _cpfft
-        elif _cpfftpack is not None and hasattr(_cpfftpack, "get_fft_plan"):
-            plan_mod = _cpfftpack
 
         if plan_mod is not None:
             # Forward: rfft2 on real UR_full over (z,x) axes
@@ -403,6 +396,11 @@ def create_dns_state(
                 axes=(1, 2),
                 value_type="C2R",
             )
+
+        if plan_mod is None:
+            print("FFT plan_mod: None")
+        else:
+            print(f"FFT plan_mod: {plan_mod.__name__}")
 
     # PAO-style initialization (dnsCudaPaoHostInit)
     dns_pao_host_init(state)
@@ -453,8 +451,17 @@ def create_dns_state(
     state.step3_DEN = xp.empty((NZ, NX_half), dtype=xp.float32)
     state.step3_NUM = xp.empty((NZ, NX_half), dtype=xp.complex64)
 
-    # ix=0 branch mask (Z>=2 and GAMMA!=0), constant
+    # ix=0 branch mask (Z>=1 and GAMMA!=0), constant
     state.step3_mask_ix0 = (state.step3_z_indices >= 1) & (xp.abs(state.gamma) > 0.0)
+
+    # Precompute safe inv_gamma for ix=0 (avoid xp.divide(where=...) which CuPy rejects here)
+    mask0 = xp.asarray(state.step3_mask_ix0)  # stays on-GPU for CuPy
+    safe_gamma = xp.where(mask0, state.gamma, xp.float32(1.0))  # no zeros in denominator
+    inv_gamma0 = (xp.float32(1.0) / safe_gamma).astype(xp.float32, copy=False)
+    inv_gamma0 *= mask0.astype(xp.float32, copy=False)  # zero out invalid lanes
+
+    state.step3_mask_ix0 = mask0
+    state.step3_inv_gamma0 = inv_gamma0
 
     # DIVXZ = 1/(3NX/2 * 3NZ/2), constant for fixed N
     NX32 = xp.float32(1.5) * xp.float32(state.Nbase)
@@ -976,9 +983,9 @@ def dns_step3(S: DnsState) -> None:
         out2[:, 1:] *= alfa[1:][None, :]
         out2[:, 1:] *= xp.complex64(1.0j)
 
+    # GPU-optimized ix=0 branch: no fancy indexing gather/scatter
     out1[:, 0] = 0
-    mask0 = S.step3_mask_ix0
-    out1[mask0, 0] = xp.complex64(-1.0j) * (om2[mask0, 0] / gamma[mask0])
+    out1[:, 0] = xp.complex64(-1.0j) * om2[:, 0] * S.step3_inv_gamma0
 
     uc_full[0, :NZ, :NX_half] = out1
     uc_full[1, :NZ, :NX_half] = out2
@@ -1048,7 +1055,7 @@ def dns_step2a(S: DnsState) -> None:
 # NEXTDT — CFL based timestep
 # ---------------------------------------------------------------------------
 
-def compute_cflm(S: DnsState) -> float:
+def compute_cflm(S: DnsState):
     xp = S.xp
 
     NX3D2 = S.NX_full
@@ -1064,19 +1071,24 @@ def compute_cflm(S: DnsState) -> float:
     xp.abs(w, out=absw)
     xp.add(tmp, absw, out=tmp)
 
-    CFLM = float(xp.max(tmp) * S.inv_dx)
+    CFLM = xp.max(tmp) * S.inv_dx
+    if S.backend == "cpu":
+        return float(CFLM)
+
     return CFLM
 
 
 def next_dt(S: DnsState) -> None:
     PI = math.pi
-
     CFLM = compute_cflm(S)
+
+    if S.backend == "gpu":
+        CFLM = float(CFLM)  # one sync here, but only when next_dt is called
+
     if CFLM <= 0.0 or S.dt <= 0.0:
         return
 
     CFL = CFLM * S.dt * PI
-
     S.cn = 0.8 + 0.2 * (S.cflnum / CFL)
     S.dt = S.dt * S.cn
 
@@ -1232,7 +1244,7 @@ def run_dns(
     CFL: float = 0.75,
     backend: Literal["cpu", "gpu", "auto"] = "auto",
 ) -> None:
-    print("--- INITIALIZING PAO ---")
+    print("--- RUN DNS ---")
     print(f" N   = {N}")
     print(f" Re  = {Re}")
     print(f" K0  = {K0}")
@@ -1257,9 +1269,15 @@ def run_dns(
         dns_step2a(S)
 
         CFLM = compute_cflm(S)
-        S.dt = S.cflnum / (CFLM * math.pi)
+        if S.backend == "gpu":
+            CFLM0 = float(CFLM)  # one sync here at init (fine)
+        else:
+            CFLM0 = CFLM
+
+        S.dt = S.cflnum / (CFLM0 * math.pi)
         S.cn = 1.0
         S.cnm1 = 0.0
+        S.t = 0.0
 
         print(f" [NEXTDT INIT] CFLM={CFLM:11.4f} DT={S.dt:11.7f} CN={S.cn:11.7f}")
         print(f" Initial DT={S.dt:11.7f} CN={S.cn:11.7f}")
@@ -1275,8 +1293,8 @@ def run_dns(
             dns_step2b(S)
             dns_step3(S)
             dns_step2a(S)
-            next_dt(S)
 
+            next_dt(S)
             S.t += dt_old
 
             if (it % 100) == 0 or it == 1 or it == STEPS:
