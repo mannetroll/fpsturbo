@@ -83,7 +83,7 @@ def main() -> None:
     ax1.set_ylabel("Frames per second (FPS)")
     ax1.set_title("log-log")
     ax1.grid(True, which="both", linestyle="--", alpha=0.5)
-    ax1.legend(loc="upper right")
+    ax1.legend(loc="lower left")
 
     # ---- Right subplot: log-lin ----
     ax2.set_xscale("log", base=2)  # log x
