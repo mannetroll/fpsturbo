@@ -15,9 +15,7 @@ rm -f "${OUT_CSV}"
 # Header
 echo "N,FPS" > "${OUT_CSV}"
 
-for K in $(seq 5 14); do
-    N=$((2 ** K))
-
+for N in 32 64 128 256 512 1024 2048 3072 4096 8192 9216; do
     LOG="fps_N${N}.log"
     echo "Running N=${N} ..."
 

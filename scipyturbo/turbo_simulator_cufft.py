@@ -1287,18 +1287,17 @@ def run_dns(
 
         for it in range(1, STEPS + 1):
             S.it = it
-
             dt_old = S.dt
 
             dns_step2b(S)
             dns_step3(S)
             dns_step2a(S)
 
-            next_dt(S)
-            S.t += dt_old
-
             if (it % 100) == 0 or it == 1 or it == STEPS:
+                next_dt(S)
                 print(f" ITERATION {it:6d} T={S.t:12.10f} DT={S.dt:10.8f} CN={S.cn:10.8f}")
+
+        S.t += dt_old
 
         S.sync()
         t1 = time.perf_counter()
