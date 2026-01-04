@@ -89,7 +89,7 @@ def main() -> None:
     ax2.set_xscale("log", base=2)  # log x
     ax2.set_xlabel("Grid size N (integer)")
     ax2.set_ylabel("Frames per second (FPS)")
-    ax2.set_ylim(0, 100)
+    ax2.set_ylim(0, 250)
     ax2.set_title("log-lin")
     ax2.grid(True, which="both", linestyle="--", alpha=0.5)
     ax2.legend(loc="upper right")
@@ -101,7 +101,7 @@ def main() -> None:
         xticks = [2 ** k for k in range(k_min, k_max + 1)]
         ax2.set_xticks(xticks)
         ax2.set_xticklabels([str(t) for t in xticks], rotation=45, ha="right")
-        ax2.set_xlim(512, 8192)
+        ax2.set_xlim(512, 9216)
 
     fig.suptitle("DNS FPS vs Grid Size (comparison)")
     fig.tight_layout(rect=[0, 0, 1, 0.93])
