@@ -1,5 +1,5 @@
 """
-turbo_simulator.py — 2D Homogeneous Turbulence DNS (SciPy / CuPy port)
+turbo_simulator_cufft.py — 2D Homogeneous Turbulence DNS (SciPy / CuPy port)
 
 This is a structural port of dns_all.cu to Python.
 
@@ -41,11 +41,222 @@ try:
     print(" Checking CuPy...")
     import cupy as _cp
     _cp.show_config()
+    _cflm_max_abs_sum = None
+    if _cp is not None:
+        _cflm_max_abs_sum = _cp.ReductionKernel(
+            in_params="float32 u, float32 w",
+            out_params="float32 out",
+            map_expr="fabsf(u) + fabsf(w)",
+            reduce_expr="max(a, b)",
+            post_map_expr="out = a",
+            identity="0.0f",
+            name="cflm_max_abs_sum",
+        )
 except Exception:  # CuPy is optional
     _cp = None
     print(" CuPy not installed")
 
 import numpy as np  # in addition to your existing _np alias, this is fine
+
+# ===============================================================
+# Optional Numba acceleration (CPU-only) for PAO initialization
+#
+# Pattern:
+#   - one PAO kernel implementation (NumPy)
+#   - one dispatcher name used by dns_pao_host_init
+#   - if numba exists: dispatcher points to njit() version
+#   - else: dispatcher points to pure-Python version
+#
+# IMPORTANT: no duplicate PAO kernel code.
+# ===============================================================
+try:
+    import numba as _nb  # type: ignore
+except Exception:
+    _nb = None
+
+
+def _pao_build_ur_and_stats_impl(
+    N: int,
+    NE: int,
+    K0: np.float32,
+    Re: np.float32,
+    seed_init: int,
+    alfa: np.ndarray,
+    gamma: np.ndarray,
+):
+    """
+    Shared PAO core (single source of truth):
+
+      - Generate isotropic random spectrum (Fortran DO 500/510 loops)
+      - Hermitian symmetry in Z (Fortran DO 600)
+      - Compute averages A(1..7), E110, Q2, W2, VISC (Fortran DO 800/810)
+      - Reshuffle (Fortran DO 1000 block)
+
+    IMPORTANT:
+      - Keep SERIAL loop order to preserve deterministic RNG call sequence for a given seed.
+      - No prints inside: must work for Numba and non-Numba.
+    """
+    ND2 = N // 2
+    NED2 = NE // 2
+    PI = np.float32(3.14159265358979)
+
+    # ------------------------------------------------------------------
+    # Fortran LCG used in PAO (same constants as frand()).
+    # ------------------------------------------------------------------
+    IMM = 420029
+    IT = 2017
+    ID = 5011
+
+    seed = int(seed_init)
+
+    # ------------------------------------------------------------------
+    # Fortran random vector RANVEC(97)
+    # ------------------------------------------------------------------
+    RANVEC = np.zeros(97, dtype=np.float32)
+
+    # "warm-up" 97 calls
+    for _ in range(97):
+        seed = (seed * IMM + IT) % ID
+
+    # fill RANVEC
+    for i in range(97):
+        seed = (seed * IMM + IT) % ID
+        RANVEC[i] = np.float32(seed) / np.float32(ID)
+
+    NORM = PI * K0 * K0
+
+    # ------------------------------------------------------------------
+    # Host spectral UR: complex field UR(kx,z,comp)
+    # comp=0 → u1, comp=1 → u3 (Fortran components 1 and 2)
+    #
+    #   UR[x,z,c]  where  x ∈ [0..ND2-1], z ∈ [0..NE-1], c ∈ {0,1}
+    # ------------------------------------------------------------------
+    UR = np.zeros((ND2, NE, 2), dtype=np.complex64)
+
+    # ------------------------------------------------------------------
+    # Generate isotropic random spectrum (Fortran DO 500/510 loops)
+    # ------------------------------------------------------------------
+    for z in range(NE):
+        gz = gamma[z]
+        for x in range(NED2):
+            # frand()
+            seed = (seed * IMM + IT) % ID
+            r = np.float32(seed) / np.float32(ID)
+
+            # random_from_vec(r)
+            idx = int(float(r) * 97.0)
+            if idx < 0:
+                idx = 0
+            if idx > 96:
+                idx = 96
+            v = RANVEC[idx]
+            RANVEC[idx] = r
+
+            th = np.float32(2.0) * PI * v
+            ARG = np.complex64(np.cos(th) + 1j * np.sin(th))
+
+            ax = alfa[x]
+            K2 = np.float32(ax * ax + gz * gz)
+            K = np.float32(np.sqrt(K2)) if K2 > 0.0 else np.float32(0.0)
+
+            if ax == 0.0:
+                # ALFA(X) == 0: purely u1 mode
+                UR[x, z, 1] = np.complex64(0.0 + 0.0j)
+
+                ABSU2 = np.float32(np.exp(- (K / K0) * (K / K0)) / NORM)
+                amp = np.float32(np.sqrt(ABSU2))
+                UR[x, z, 0] = np.complex64(amp) * ARG
+            else:
+                denom = np.float32(1.0) + (gz * gz) / (ax * ax)
+                ABSW2 = np.float32(np.exp(- (K / K0) * (K / K0)) / (denom * NORM))
+                ampw = np.float32(np.sqrt(ABSW2))
+
+                w = np.complex64(ampw) * ARG
+                u = np.complex64(- (gz / ax)) * w  # -GAMMA/ALFA * UR(.,.,2)
+
+                UR[x, z, 1] = w
+                UR[x, z, 0] = u
+
+    # Special zero modes (UR(1,1,1)=0, UR(1,1,2)=0 in 1-based Fortran)
+    UR[0, 0, 0] = np.complex64(0.0 + 0.0j)
+    UR[0, 0, 1] = np.complex64(0.0 + 0.0j)
+
+    # ------------------------------------------------------------------
+    # Hermitian symmetry in Z (Fortran DO 600)
+    # ------------------------------------------------------------------
+    for z in range(1, NED2):
+        UR[0, NE - z, 0] = np.conj(UR[0, z, 0])
+        UR[0, NE - z, 1] = np.conj(UR[0, z, 1])
+
+    # Zero at Z=NED2+1 (index NED2 in 0-based)
+    for x in range(ND2):
+        UR[x, NED2, 0] = np.complex64(0.0 + 0.0j)
+        UR[x, NED2, 1] = np.complex64(0.0 + 0.0j)
+
+    # ------------------------------------------------------------------
+    # Compute averages A(1..7), E110, Q2, W2, VISC (Fortran DO 800/810)
+    # ------------------------------------------------------------------
+    A1 = 0.0
+    A2 = 0.0
+    A3 = 0.0
+    A4 = 0.0
+    A5 = 0.0
+    A6 = 0.0
+    A7 = 0.0
+    E110 = 0.0
+
+    for x in range(ND2):
+        x1 = (x == 0)
+        ax2 = float(alfa[x]) * float(alfa[x])
+
+        for z in range(NE):
+            U1 = UR[x, z, 0]
+            U3 = UR[x, z, 1]
+
+            # Keep this explicit (Numba-friendly, avoids complex abs)
+            u1u1 = float(U1.real) * float(U1.real) + float(U1.imag) * float(U1.imag)
+            u3u3 = float(U3.real) * float(U3.real) + float(U3.imag) * float(U3.imag)
+
+            gz2 = float(gamma[z]) * float(gamma[z])
+            K2f = ax2 + gz2
+            m = 1.0 if x1 else 2.0
+
+            A1 += m * u1u1
+            A2 += m * u3u3
+            A3 += m * u1u1 * ax2
+            A4 += m * u1u1 * gz2
+            A5 += m * u3u3 * ax2
+            A6 += m * u3u3 * gz2
+            A7 += m * (u1u1 + u3u3) * K2f * K2f
+
+            if x1:
+                E110 += u1u1
+
+    Q2 = A1 + A2
+    W2 = A3 + A4 + A5 + A6
+    visc = np.sqrt((Q2 * Q2) / (float(Re) * W2))
+
+    # ------------------------------------------------------------------
+    # Reshuffle (Fortran DO 1000 block)
+    # ------------------------------------------------------------------
+    for comp in range(2):
+        for z in range(NED2 - 1, -1, -1):
+            for x in range(ND2):
+                # UR(X,N-NED2+Z,I) = UR(X,Z+NED2,I)
+                UR[x, N - NED2 + z, comp] = UR[x, z + NED2, comp]
+
+                # IF(Z.LE.(N-NE)) UR(X,Z+NED2,I) = NOLL
+                if z <= (N - NE - 1):
+                    UR[x, z + NED2, comp] = np.complex64(0.0 + 0.0j)
+
+    return UR, seed, np.float32(visc), Q2, W2, E110, A1, A2, A3, A4, A5, A6, A7
+
+
+# Dispatcher used by dns_pao_host_init (Numba if available; else Python).
+if _nb is not None:
+    _pao_build_ur_and_stats = _nb.njit(cache=True)(_pao_build_ur_and_stats_impl)
+else:
+    _pao_build_ur_and_stats = _pao_build_ur_and_stats_impl
 
 # ===============================================================
 # ONLY FFT selection (CPU: scipy.fft, GPU: cupyx.scipy.fft)
@@ -357,6 +568,8 @@ def create_dns_state(
 
     # Cache FFT module for the chosen backend (avoid per-call selection)
     state.fft = _fft_mod_for_state(state)
+    if state.backend == "cpu" and state.fft is None:
+        raise RuntimeError("scipy.fft import failed; CPU backend requires SciPy.")
 
     # Precompute inverse grid spacing (dx==dz==2*pi/N)
     state.inv_dx = float(state.Nbase) / (2.0 * math.pi)
@@ -520,120 +733,29 @@ def dns_pao_host_init(S: DnsState):
     # Fortran random vector RANVEC(97)
     # ------------------------------------------------------------------
     seed = [int(S.seed_init)]  # mimics ISEED SAVE
-    RANVEC = np.zeros(97, dtype=np.float32)
-
-    # "warm-up" 97 calls
-    for _ in range(97):
-        frand(seed)
-
-    # fill RANVEC
-    for i in range(97):
-        RANVEC[i] = frand(seed)
-
-    def random_from_vec(r: np.float32) -> np.float32:
-        idx = int(float(r) * 97.0)
-        if idx < 0:
-            idx = 0
-        if idx > 96:
-            idx = 96
-        v = RANVEC[idx]
-        RANVEC[idx] = r
-        return v
 
     # ------------------------------------------------------------------
     # Generate isotropic random spectrum (Fortran DO 500/510 loops)
     # ------------------------------------------------------------------
-    print("Generate isotropic random spectrum...")
-    for z in range(NE):
-        if z % 1000 == 0:
-            print(f"z={z}/{NE}")
+    print("Generate isotropic random spectrum... " + ("(Numba)" if (_nb is not None) else "(Python)"))
 
-        gz = gamma[z]
-        for x in range(NED2):
-            r = frand(seed)
-            th = np.float32(2.0) * PI * random_from_vec(r)
+    UR, seed_out, visc_f32, Q2, W2, E110, A1, A2, A3, A4, A5, A6, A7 = _pao_build_ur_and_stats(
+        N=N,
+        NE=NE,
+        K0=np.float32(S.K0),
+        Re=np.float32(S.Re),
+        seed_init=int(S.seed_init),
+        alfa=alfa,
+        gamma=gamma,
+    )
 
-            ARG = np.complex64(np.cos(th) + 1j * np.sin(th))
-
-            ax = alfa[x]
-            K2 = np.float32(ax * ax + gz * gz)
-            K = np.float32(np.sqrt(K2)) if K2 > 0.0 else np.float32(0.0)
-
-            if ax == 0.0:
-                # ALFA(X) == 0: purely u1 mode
-                UR[x, z, 1] = np.complex64(0.0 + 0.0j)
-
-                ABSU2 = np.float32(np.exp(- (K / K0) * (K / K0)) / NORM)
-                amp = np.float32(np.sqrt(ABSU2))
-                UR[x, z, 0] = np.complex64(amp) * ARG
-            else:
-                denom = np.float32(1.0) + (gz * gz) / (ax * ax)
-                ABSW2 = np.float32(np.exp(- (K / K0) * (K / K0)) / (denom * NORM))
-                ampw = np.float32(np.sqrt(ABSW2))
-
-                w = np.complex64(ampw) * ARG
-                u = np.complex64(- (gz / ax)) * w  # -GAMMA/ALFA * UR(.,.,2)
-
-                UR[x, z, 1] = w
-                UR[x, z, 0] = u
-
-    # Special zero modes (UR(1,1,1)=0, UR(1,1,2)=0 in 1-based Fortran)
-    UR[0, 0, 0] = np.complex64(0.0 + 0.0j)
-    UR[0, 0, 1] = np.complex64(0.0 + 0.0j)
-
-    # ------------------------------------------------------------------
-    # Hermitian symmetry in Z (Fortran DO 600)
-    # ------------------------------------------------------------------
-    for z in range(1, NED2):
-        UR[0, NE - z, 0] = np.conj(UR[0, z, 0])
-        UR[0, NE - z, 1] = np.conj(UR[0, z, 1])
-
-    # Zero at Z=NED2+1 (index NED2 in 0-based)
-    UR[:, NED2, 0] = 0.0 + 0.0j
-    UR[:, NED2, 1] = 0.0 + 0.0j
-
-    # ------------------------------------------------------------------
-    # Compute averages A(1..7), E110, Q2, W2, VISC (Fortran DO 800/810)
-    # ------------------------------------------------------------------
-    A1 = A2 = A3 = A4 = A5 = A6 = A7 = 0.0
-    E110 = 0.0
-
-    print("Compute averages A(1..7), E110, Q2, W2, VISC...")
-    for x in range(ND2):
-        x1 = (x == 0)
-        ax2 = float(alfa[x]) * float(alfa[x])
-
-        for z in range(NE):
-            U1 = UR[x, z, 0]
-            U3 = UR[x, z, 1]
-
-            u1u1 = float(np.abs(U1) ** 2)
-            u3u3 = float(np.abs(U3) ** 2)
-
-            gz2 = float(gamma[z]) * float(gamma[z])
-            K2 = ax2 + gz2
-            m = 1.0 if x1 else 2.0
-
-            A1 += m * u1u1
-            A2 += m * u3u3
-            A3 += m * u1u1 * ax2
-            A4 += m * u1u1 * gz2
-            A5 += m * u3u3 * ax2
-            A6 += m * u3u3 * gz2
-            A7 += m * (u1u1 + u3u3) * K2 * K2
-
-            if x1:
-                E110 += u1u1
-
-    Q2 = A1 + A2
-    W2 = A3 + A4 + A5 + A6
-    visc = math.sqrt(Q2 * Q2 / (float(S.Re) * W2))
-
-    S.visc = np.float32(visc)
+    seed[0] = int(seed_out)
+    S.visc = np.float32(visc_f32)
 
     # ------------------------------------------------------------------
     # Extra diagnostics (Fortran WRITE block)
     # ------------------------------------------------------------------
+    visc = float(S.visc)
     EP = visc * W2
     De = 2.0 * visc * visc * A7
     KOL = (visc * visc * visc / EP) ** 0.25
@@ -676,23 +798,11 @@ def dns_pao_host_init(S: DnsState):
     print(f" PAO seed    ={seed[0]:12d}")
 
     # ------------------------------------------------------------------
-    # Reshuffle (Fortran DO 1000 block)
-    # ------------------------------------------------------------------
-    for comp in range(2):
-        for z in range(NED2 - 1, -1, -1):
-            for x in range(ND2):
-                # UR(X,N-NED2+Z,I) = UR(X,Z+NED2,I)
-                UR[x, N - NED2 + z, comp] = UR[x, z + NED2, comp]
-
-                # IF(Z.LE.(N-NE)) UR(X,Z+NED2,I) = NOLL
-                if z <= (N - NE - 1):
-                    UR[x, z + NED2, comp] = 0.0 + 0.0j
-
-    # ------------------------------------------------------------------
     # Scatter spectral UR → compact UC(kx,z,comp) buffer (current grid)
     #   UC: (NK, NE, 3) on host, but DnsState.uc is (NZ, NK, 3) in xp
     # ------------------------------------------------------------------
     NK = S.NK
+    print(f" UC_host = np.zeros(({NK}, {NE}, 3), dtype=np.complex64)")
     UC_host = np.zeros((NK, NE, 3), dtype=np.complex64)  # only comp 0,1 used
 
     for z in range(NE):
@@ -704,13 +814,14 @@ def dns_pao_host_init(S: DnsState):
     NK_full = S.NK_full
     NZ_full = S.NZ_full
 
+    print(f" UC_full_host = np.zeros(({NK_full}, {NZ_full}, 3), dtype=np.complex64)")
     UC_full_host = np.zeros((NK_full, NZ_full, 3), dtype=np.complex64)
     for z in range(NE):
         for x in range(ND2):
             for c in range(2):
                 UC_full_host[x, z, c] = UR[x, z, c]
 
-    print(f" PAO initialization OK. VISC={float(S.visc):.7g}")
+    print(f" PAO INITIALIZATION OK. VISC={float(S.visc):.7g}")
 
     # ------------------------------------------------------------------
     # Move alfa/gamma/UC/UC_full into DnsState (xp backend, SoA layout)
@@ -730,9 +841,11 @@ def dns_pao_host_init(S: DnsState):
     # Build initial UR_full & om2 from UC_full (for the rest of the solver)
     # ------------------------------------------------------------------
     # Inverse transform UC_full → UR_full for diagnostics / STEP2B input
+    print(f" vfft_full_inverse_uc_full_to_ur_full(S)")
     vfft_full_inverse_uc_full_to_ur_full(S)
 
     # Spectral vorticity from UC_full, like dnsCudaCalcom
+    print(f" dns_calcom_from_uc_full(S)")
     dns_calcom_from_uc_full(S)
 
     # No history yet
@@ -747,8 +860,6 @@ def vfft_full_inverse_uc_full_to_ur_full(S: DnsState) -> None:
     xp = S.xp
     UC = S.uc_full
     fft = S.fft
-    if fft is None:
-        raise RuntimeError("scipy.fft is not available on CPU (import scipy.fft failed).")
 
     UC01 = UC[0:2, :, :]
 
@@ -761,6 +872,9 @@ def vfft_full_inverse_uc_full_to_ur_full(S: DnsState) -> None:
                 ur01 = fft.irfft2(UC01, s=(S.NZ_full, S.NX_full), axes=(1, 2))
         else:
             ur01 = fft.irfft2(UC01, s=(S.NZ_full, S.NX_full), axes=(1, 2))
+
+    # Match previous STEP2A behavior exactly: scale BEFORE float32 cast/assign.
+    ur01 *= (S.NZ_full * S.NX_full)
 
     S.ur_full[0:2, :, :] = xp.asarray(ur01, dtype=xp.float32)
     S.ur_full[2, :, :] = xp.float32(0.0)
@@ -779,8 +893,6 @@ def vfft_full_forward_ur_full_to_uc_full(S: DnsState) -> None:
     # S.ur_full is already float32
     UR = S.ur_full
     fft = S.fft
-    if fft is None:
-        raise RuntimeError("scipy.fft is not available on CPU (import scipy.fft failed).")
 
     if S.backend == "cpu":
         # overwrite_x is safe here (UR_full is overwritten later by STEP2A anyway)
@@ -854,6 +966,8 @@ def dns_calcom_from_uc_full(S: DnsState) -> None:
 # ---------------------------------------------------------------------------
 # STEP2B — build uiuj and forward FFT (dnsCudaStep2B)
 # ---------------------------------------------------------------------------
+_STEP2B_MUL3_KERNEL = None  # created lazily on first GPU call
+
 def dns_step2b(S: DnsState) -> None:
     """
     Python/CuPy port of dnsCudaStep2B(DnsDeviceState *S).
@@ -879,10 +993,22 @@ def dns_step2b(S: DnsState) -> None:
     u = UR[0]   # (NZ_full, NX_full)
     w = UR[1]   # (NZ_full, NX_full)
 
-    # Use in-place multiplies to avoid temporaries
-    xp.multiply(u, w, out=UR[2])  # u * w
-    xp.multiply(u, u, out=UR[0])  # u^2
-    xp.multiply(w, w, out=UR[1])  # w^2
+    # Use a single elementwise GPU kernel to write all three products in one pass
+    if S.backend == "gpu":
+        global _STEP2B_MUL3_KERNEL
+        if _STEP2B_MUL3_KERNEL is None:
+            _STEP2B_MUL3_KERNEL = xp.ElementwiseKernel(
+                "T u, T w",
+                "T uw, T uu, T ww",
+                "uw = u * w; uu = u * u; ww = w * w;",
+                "turbo_step2b_mul3",
+            )
+        _STEP2B_MUL3_KERNEL(u, w, UR[2], UR[0], UR[1])
+    else:
+        # Use in-place multiplies to avoid temporaries
+        xp.multiply(u, w, out=UR[2])  # u * w
+        xp.multiply(u, u, out=UR[0])  # u^2
+        xp.multiply(w, w, out=UR[1])  # w^2
 
     vfft_full_forward_ur_full_to_uc_full(S)
 
@@ -1022,26 +1148,8 @@ def dns_step2a(S: DnsState) -> None:
         UC[0:2, z_top_start:z_top_end, :k_max] = UC[0:2, z_mid_start:z_mid_end, :k_max]
         UC[0:2, z_mid_start:z_mid_end, :k_max] = xp.complex64(0.0 + 0.0j)
 
-    fft = S.fft
-    if fft is None:
-        raise RuntimeError("scipy.fft is not available on CPU (import scipy.fft failed).")
-
-    UC01 = UC[0:2, :, :]
-
-    if S.backend == "cpu":
-        ur01 = fft.irfft2(UC01, s=(NZ_full, NX_full), axes=(1, 2), overwrite_x=True)
-    else:
-        plan = S.fft_plan_irfft2_uc01
-        if plan is not None:
-            with plan:
-                ur01 = fft.irfft2(UC01, s=(NZ_full, NX_full), axes=(1, 2))
-        else:
-            ur01 = fft.irfft2(UC01, s=(NZ_full, NX_full), axes=(1, 2))
-
-    ur01 *= xp.float32(NZ_full * NX_full)
-
-    S.ur_full[0:2, :, :] = ur01
-    S.ur_full[2, :, :] = xp.float32(0.0)
+    # Inverse FFT UC_full → UR_full
+    vfft_full_inverse_uc_full_to_ur_full(S)
 
     off_x = (NX_full - NX) // 2
     off_z = (NZ_full - NZ) // 2
@@ -1057,26 +1165,24 @@ def dns_step2a(S: DnsState) -> None:
 
 def compute_cflm(S: DnsState):
     xp = S.xp
-
     NX3D2 = S.NX_full
     NZ3D2 = S.NZ_full
 
     u = S.ur_full[0, :NZ3D2, :NX3D2]
     w = S.ur_full[1, :NZ3D2, :NX3D2]
 
+    if S.backend == "gpu" and _cflm_max_abs_sum is not None:
+        CFLM = _cflm_max_abs_sum(u, w) * xp.float32(S.inv_dx)  # GPU scalar
+        return CFLM
+
+    # CPU (or fallback): keep current code path
     tmp = S.cfl_tmp[:NZ3D2, :NX3D2]
     absw = S.cfl_absw[:NZ3D2, :NX3D2]
-
     xp.abs(u, out=tmp)
     xp.abs(w, out=absw)
     xp.add(tmp, absw, out=tmp)
-
     CFLM = xp.max(tmp) * S.inv_dx
-    if S.backend == "cpu":
-        return float(CFLM)
-
-    return CFLM
-
+    return float(CFLM) if S.backend == "cpu" else CFLM
 
 def next_dt(S: DnsState) -> None:
     PI = math.pi
@@ -1194,8 +1300,6 @@ def _spectral_band_to_phys_full_grid(S: DnsState, band) -> any:
         uc_tmp[z_mid, :NX_half] = xp.complex64(0.0 + 0.0j)
 
     fft = S.fft
-    if fft is None:
-        raise RuntimeError("scipy.fft is not available on CPU (import scipy.fft failed).")
 
     if S.backend == "cpu":
         phys = fft.irfft2(uc_tmp, s=(NZ_full, NX_full), axes=(0, 1), overwrite_x=True)
@@ -1252,8 +1356,11 @@ def run_dns(
     print(f" CFL  = {CFL}")
     print(f" requested = {backend}")
 
+    start =  time.perf_counter()
     S = create_dns_state(N=N, Re=Re, K0=K0, CFL=CFL, backend=backend)
     print(f" effective = {S.backend} (xp = {'cupy' if S.backend == 'gpu' else 'scipy'})")
+    elapsed = time.perf_counter() - start
+    print(f" DNS INITIALIZATION took {elapsed:.3f} seconds")
 
     if S.backend == "cpu" and _spfft is not None and S.fft_workers > 1:
         fft_ctx = _spfft.set_workers(S.fft_workers)
@@ -1272,14 +1379,14 @@ def run_dns(
         if S.backend == "gpu":
             CFLM0 = float(CFLM)  # one sync here at init (fine)
         else:
-            CFLM0 = CFLM
+            CFLM0 = float(CFLM)
 
         S.dt = S.cflnum / (CFLM0 * math.pi)
         S.cn = 1.0
         S.cnm1 = 0.0
         S.t = 0.0
 
-        print(f" [NEXTDT INIT] CFLM={CFLM:11.4f} DT={S.dt:11.7f} CN={S.cn:11.7f}")
+        print(f" [NEXTDT INIT] CFLM={CFLM0:11.4f} DT={S.dt:11.7f} CN={S.cn:11.7f}")
         print(f" Initial DT={S.dt:11.7f} CN={S.cn:11.7f}")
 
         S.sync()
@@ -1288,16 +1395,13 @@ def run_dns(
         for it in range(1, STEPS + 1):
             S.it = it
             dt_old = S.dt
-
             dns_step2b(S)
             dns_step3(S)
             dns_step2a(S)
-
             if (it % 100) == 0 or it == 1 or it == STEPS:
                 next_dt(S)
-                print(f" ITERATION {it:6d} T={S.t:12.10f} DT={S.dt:10.8f} CN={S.cn:10.8f}")
-
-        S.t += dt_old
+                print(f" ITERATION {it:6d} T={S.t:12.10f} DT={S.dt:10.8f} CN={S.cn:10.8f} CFLM={float(compute_cflm(S)):.6f}")
+            S.t += dt_old
 
         S.sync()
         t1 = time.perf_counter()
