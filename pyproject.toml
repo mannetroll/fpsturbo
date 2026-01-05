@@ -12,7 +12,8 @@ authors = [
 
 dependencies = [
     "matplotlib>=3.10.8",
-    "numpy>=2.0.0",
+    "numpy>=2.3.5,<3",
+    "numba>=0.63.1,<1",
     "pillow>=10.0",
     "PyQt6>=6.7",
     "scipy>=1.16.3",
@@ -31,9 +32,10 @@ cuda = [
 
 [project.scripts]
 turbulence1 = "cupyturbo.dns_main:main"
-fps1 = "cupyturbo.dns_simulator:main"
+fps = "cupyturbo.dns_simulator:main"
 turbulence2 = "scipyturbo.scipy_main:main"
-fps2 = "scipyturbo.scipy_simulator:main"
+sim = "scipyturbo.scipy_simulator:main"
+cufft = "scipyturbo.turbo_simulator_cufft:main"
 
 # Package discovery
 [tool.setuptools.packages.find]
