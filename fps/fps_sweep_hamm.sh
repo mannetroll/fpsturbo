@@ -20,7 +20,7 @@ for N in 32 64 128 256 384 400 432 450 480 486 500 512 540 576 600 640 648 675 7
     echo "Running N=${N} ..."
 
     # Run and capture full output (run from fps/, so PYTHONPATH=..)
-    PYTHONPATH=.. PYTHONUNBUFFERED=1 uv run python -u -m scipyturbo.turbo_simulator_cufft "$N" 1e4 10 5001 2>&1 | stdbuf -oL -eL tee -a "$LOG"
+    PYTHONPATH=.. PYTHONUNBUFFERED=1 uv run python -u -m scipyturbo.turbo_simulator_cufft "$N" 1e4 10 101 2>&1 | stdbuf -oL -eL tee -a "$LOG"
 
     # Extract FPS from:  " FPS = 127.447"
     FPS=$(grep -E "FPS =" "${LOG}" | tail -n 1 | awk '{print $3}')
