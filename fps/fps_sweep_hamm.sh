@@ -3,7 +3,7 @@ set -euo pipefail
 
 #
 #  From fps/:
-#    $ nohup stdbuf -oL bash fps_sweep_cufft.sh > fps_sweep_cufft.txt 2>&1 &
+#    $ nohup stdbuf -oL bash fps_sweep_hamm.sh > fps_sweep_cufft.txt 2>&1 &
 #
 #    $ PYTHONPATH=.. uv run python -m scipyturbo.turbo_simulator_cufft 512 1E4 10 1001 0.5 gpu
 #
