@@ -28,7 +28,7 @@ for N in 32 64 128 256 384 400 480 486 640 648 768 864 972 1024 1536 2048 3072 4
 
     echo "${N},${FPS}" >> "${OUT_CSV}"
     echo "${N},${FPS}"
-    sleep 1
+    sleep 3
 done
 
 rm *.log
