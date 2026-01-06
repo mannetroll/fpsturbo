@@ -28,4 +28,5 @@ for N in 32 64 128 256 384 400 432 450 480 486 500 512 540 576 600 640 648 720 7
     echo "${N},${FPS}" >> "${OUT_CSV}"
 done
 
+rm *.log
 echo "Done. Results written to ${OUT_CSV}"
