@@ -57,9 +57,15 @@ def read_pgm_p5(path: Path) -> np.ndarray:
         return arr
 
 
-def radial_mean_power_spectrum(a2d: np.ndarray, nbins: int | None = None):
+def radial_shell_spectrum_from_scalar(a2d: np.ndarray, nbins: int | None = None):
     """
-    Returns r_centers, pmean, good_mask.
+    Energy-spectrum-like 1D shell SUM from a scalar field:
+
+    - Compute 2D FFT of scalar field s(x,z)
+    - Power P = |s_hat|^2
+    - Bin by radial wavenumber and SUM inside each ring (no division by mode count)
+
+    Returns r_centers, Eshell, good_mask.
     r is normalized radius k / k_Nyquist where k_Nyquist = N/2 (axis Nyquist).
     """
     a = np.asarray(a2d, dtype=np.float64)
@@ -68,6 +74,7 @@ def radial_mean_power_spectrum(a2d: np.ndarray, nbins: int | None = None):
 
     nz, nx = a.shape
 
+    # Remove mean (DC)
     a = a - float(a.mean())
 
     w = np.fft.fft2(a)
@@ -93,17 +100,16 @@ def radial_mean_power_spectrum(a2d: np.ndarray, nbins: int | None = None):
     idx = np.floor((r1 / r_max) * nbins).astype(np.int64)
     idx = np.clip(idx, 0, nbins - 1)
 
-    psum = np.bincount(idx, weights=p1, minlength=nbins)
+    # Shell sum (not mean)
+    esum = np.bincount(idx, weights=p1, minlength=nbins)
     cnt = np.bincount(idx, minlength=nbins).astype(np.float64)
 
     good = cnt > 0.0
-    pmean = np.zeros(nbins, dtype=np.float64)
-    pmean[good] = psum[good] / cnt[good]
 
     r_edges = np.linspace(0.0, r_max, nbins + 1)
     r_centers = 0.5 * (r_edges[:-1] + r_edges[1:])
 
-    return r_centers, pmean, good
+    return r_centers, esum, good
 
 
 def add_reference_line(ax, x, y, slope, x1, x2, label):
@@ -138,13 +144,14 @@ def fit_power_law(x: np.ndarray, y: np.ndarray, x_min: float, x_max: float):
 
     m, b = np.polyfit(lx, ly, 1)
     a = 10.0 ** b
+    n = -m
     return a, m
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("pgm", type=str, help="Path to omega.pgm (P5)")
-    ap.add_argument("--out", type=str, default="omega_spectrum.png", help="Output PNG")
+    ap.add_argument("pgm", type=str, help="Path to kinetic.pgm (P5)")
+    ap.add_argument("--out", type=str, default="kinetic_energy_spectrum.png", help="Output PNG")
     ap.add_argument("--nbins", type=int, default=0, help="Radial bins, 0 means auto")
     ap.add_argument("--fit_min", type=float, default=1.0e-3, help="Fit start x")
     ap.add_argument("--fit_max", type=float, default=0.1, help="Fit end x")
@@ -155,13 +162,19 @@ def main():
     pgm_path = Path(args.pgm)
     out_path = Path(args.out)
 
-    img = read_pgm_p5(pgm_path)
+    img_u8 = read_pgm_p5(pgm_path)
+
+    # kinetic.pgm contains "kinetic" (speed magnitude) as 8-bit scaled image.
+    # You stated: kinetic^2 = u^2 + v^2, so we use s = kinetic^2 as a proxy field.
+    kinetic = img_u8.astype(np.float64)
+    s = kinetic * kinetic
+
     nbins = None if args.nbins <= 0 else int(args.nbins)
 
-    r_centers, pmean, good = radial_mean_power_spectrum(img, nbins=nbins)
+    r_centers, Eshell, good = radial_shell_spectrum_from_scalar(s, nbins=nbins)
 
     x = r_centers[good]
-    y = pmean[good]
+    y = Eshell[good]
 
     fit = fit_power_law(x, y, float(args.fit_min), float(args.fit_max))
 
@@ -170,9 +183,9 @@ def main():
 
     ax.loglog(x, y, linewidth=1.5)
     ax.set_ylim(bottom=1.0)
-    ax.set_title("Omega: radially averaged FFT power spectrum")
+    ax.set_title("Kinetic energy proxy: radial shell spectrum from kinetic^2")
     ax.set_xlabel("normalized radius  k / k_Nyquist")
-    ax.set_ylabel("radially averaged power")
+    ax.set_ylabel("shell-sum power (proxy)")
 
     fit_slope_m = None
     fit_exponent_n = None
@@ -187,7 +200,7 @@ def main():
         ax.text(
             0.98,
             0.98,
-            f"fit slope m={fit_slope_m:.3f}",
+            f"fit slope m={fit_slope_m:.3f}\n[{args.fit_min:g}, {args.fit_max:g}]",
             transform=ax.transAxes,
             ha="right",
             va="top",
@@ -201,10 +214,10 @@ def main():
     x1 = float(args.x1)
     x2 = float(args.x2)
 
-    add_reference_line(ax, x, y, slope=-2.0, x1=x1, x2=x2, label=r"$k^{-2}$")
     add_reference_line(ax, x, y, slope=-3.0, x1=x1, x2=x2, label=r"$k^{-3}$")
+    add_reference_line(ax, x, y, slope=-(5.0 / 3.0), x1=x1, x2=x2, label=r"$k^{-5/3}$")
 
-    meta = f"{pgm_path.name}\nshape={img.shape[1]} x {img.shape[0]}\nnbins={len(r_centers)}"
+    meta = f"{pgm_path.name}\nshape={img_u8.shape[1]} x {img_u8.shape[0]}\nnbins={len(r_centers)}"
     if fit_slope_m is not None and fit_exponent_n is not None:
         meta = meta + f"\nfit slope m={fit_slope_m:.3f}\nfit exponent n={fit_exponent_n:.3f}"
 
@@ -231,5 +244,5 @@ if __name__ == "__main__":
     main()
 
 #
-# uv run python -m spectrum.omega_spectrum "/Users/drtobbe/Documents/Code/Cases/palinstrophy_9216_5_1E09_0.1_238252/omega.pgm"
+# uv run python -m spectrum.energy_spectrum "/Users/drtobbe/Documents/Code/Cases/palinstrophy_9216_5_1E09_0.1_238252/kinetic.pgm"
 #
