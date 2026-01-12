@@ -138,8 +138,7 @@ def fit_power_law(x: np.ndarray, y: np.ndarray, x_min: float, x_max: float):
 
     m, b = np.polyfit(lx, ly, 1)
     a = 10.0 ** b
-    n = -m
-    return a, m, n
+    return a, m
 
 
 def main():
@@ -175,11 +174,29 @@ def main():
     ax.set_xlabel("normalized radius  k / k_Nyquist")
     ax.set_ylabel("radially averaged power")
 
+    fit_slope_m = None
+    fit_exponent_n = None
+
     if fit is not None:
-        a, m, n = fit
+        a, m = fit
+        fit_slope_m = float(m)
+
         y_fit = a * (x ** m)
         ax.loglog(x, y_fit, "--", linewidth=2)
-        print(f"Fitted exponent n = {n:.6f} over [{args.fit_min:g}, {args.fit_max:g}]")
+
+        ax.text(
+            0.98,
+            0.98,
+            f"fit slope m={fit_slope_m:.3f}",
+            transform=ax.transAxes,
+            ha="right",
+            va="top",
+            fontsize=10,
+            linespacing=1.5,
+            color="black",
+        )
+
+        print(f"Fitted log-log slope m = {fit_slope_m:.6f} over [{args.fit_min:g}, {args.fit_max:g}]")
 
     x1 = float(args.x1)
     x2 = float(args.x2)
@@ -188,6 +205,9 @@ def main():
     add_reference_line(ax, x, y, slope=-3.0, x1=x1, x2=x2, label=r"$k^{-3}$")
 
     meta = f"{pgm_path.name}\nshape={img.shape[1]} x {img.shape[0]}\nnbins={len(r_centers)}"
+    if fit_slope_m is not None and fit_exponent_n is not None:
+        meta = meta + f"\nfit slope m={fit_slope_m:.3f}\nfit exponent n={fit_exponent_n:.3f}"
+
     ax.text(
         0.02,
         0.02,
