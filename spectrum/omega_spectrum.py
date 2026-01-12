@@ -147,7 +147,7 @@ def main():
     ap.add_argument("--out", type=str, default="omega_spectrum.png", help="Output PNG")
     ap.add_argument("--nbins", type=int, default=0, help="Radial bins, 0 means auto")
     ap.add_argument("--fit_min", type=float, default=1.0e-3, help="Fit start x")
-    ap.add_argument("--fit_max", type=float, default=0.5, help="Fit end x")
+    ap.add_argument("--fit_max", type=float, default=0.1, help="Fit end x")
     ap.add_argument("--x1", type=float, default=1.0e-3, help="Anchor x for reference lines")
     ap.add_argument("--x2", type=float, default=0.7, help="End x for reference lines")
     args = ap.parse_args()
