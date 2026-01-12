@@ -121,13 +121,36 @@ def add_reference_line(ax, x, y, slope, x1, x2, label):
     ax.text(x2, y2 * 1.7, label, fontsize=11, ha="left", va="center", color="black")
 
 
+def fit_power_law(x: np.ndarray, y: np.ndarray, x_min: float, x_max: float):
+    """
+    Fit y = A * x^m on log scale over x in [x_min, x_max].
+    Returns A, m, n where n = -m (so y = A * x^{-n}).
+    """
+    sel = (x >= x_min) & (x <= x_max) & np.isfinite(x) & np.isfinite(y) & (y > 0.0) & (x > 0.0)
+    if not np.any(sel):
+        return None
+
+    xf = x[sel]
+    yf = y[sel]
+
+    lx = np.log10(xf)
+    ly = np.log10(yf)
+
+    m, b = np.polyfit(lx, ly, 1)
+    a = 10.0 ** b
+    n = -m
+    return a, m, n
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("pgm", type=str, help="Path to omega.pgm (P5)")
     ap.add_argument("--out", type=str, default="omega_spectrum.png", help="Output PNG")
     ap.add_argument("--nbins", type=int, default=0, help="Radial bins, 0 means auto")
+    ap.add_argument("--fit_min", type=float, default=1.0e-3, help="Fit start x")
+    ap.add_argument("--fit_max", type=float, default=0.5, help="Fit end x")
     ap.add_argument("--x1", type=float, default=1.0e-3, help="Anchor x for reference lines")
-    ap.add_argument("--x2", type=float, default=0.3, help="End x for reference lines")
+    ap.add_argument("--x2", type=float, default=0.7, help="End x for reference lines")
     args = ap.parse_args()
 
     pgm_path = Path(args.pgm)
@@ -141,6 +164,8 @@ def main():
     x = r_centers[good]
     y = pmean[good]
 
+    fit = fit_power_law(x, y, float(args.fit_min), float(args.fit_max))
+
     fig = plt.figure(figsize=(8, 5))
     ax = fig.add_subplot(1, 1, 1)
 
@@ -149,6 +174,12 @@ def main():
     ax.set_title("Omega: radially averaged FFT power spectrum")
     ax.set_xlabel("normalized radius  k / k_Nyquist")
     ax.set_ylabel("radially averaged power")
+
+    if fit is not None:
+        a, m, n = fit
+        y_fit = a * (x ** m)
+        ax.loglog(x, y_fit, "--", linewidth=2)
+        print(f"Fitted exponent n = {n:.6f} over [{args.fit_min:g}, {args.fit_max:g}]")
 
     x1 = float(args.x1)
     x2 = float(args.x2)
@@ -172,11 +203,9 @@ def main():
     fig.tight_layout()
     fig.savefig(out_path, dpi=150)
     plt.close(fig)
+
     print(str(out_path))
+
 
 if __name__ == "__main__":
     main()
-
-#
-# uv run python -m spectrum.omega_spectrum "/Users/drtobbe/Documents/Code/Cases/palinstrophy_9216_5_1E09_0.1_238252/omega.pgm"
-#
