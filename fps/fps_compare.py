@@ -18,6 +18,7 @@ def label_from_filename(path: str) -> str:
     key = name.lower()
 
     label_map = {
+        "A100":    "CuPy (.py) A100 with C++ KERNELS",
         "cufft":   "CuPy (.py) RTX 3090 with C++ KERNELS",
         "cupy":    "CuPy (.py) RTX 3090",
         "cuda":    "CUDA C++ (.cu) RTX 3090",
