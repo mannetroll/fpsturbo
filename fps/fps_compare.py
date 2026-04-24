@@ -18,12 +18,12 @@ def label_from_filename(path: str) -> str:
     key = name.lower()
 
     label_map = {
+        "h100_cu": "CUDA C++ (.cu) H100 80GB HBM3",
         "h100":    "CuPy (.py) H100 80GB HBM3 with C++ KERNELS",
         "a100":    "CuPy (.py) A100 SXM4 80GB with C++ KERNELS",
         "cufft":   "CuPy (.py) RTX 3090 with C++ KERNELS",
         "cupy":    "CuPy (.py) RTX 3090",
         "cuda":    "CUDA C++ (.cu) RTX 3090",
-        "cu":      "CUDA C++ (.cu) RTX 3090 Optimized",
         "fortran": "FORTRAN (.f77) Apple M1 (OpenMP, 4 threads)",
         "numpy":   "NumPy (.py) Apple M1 (single thread)",
         "scipy":   "SciPy (.py) Apple M1 (4 workers)",
