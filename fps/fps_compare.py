@@ -23,6 +23,7 @@ def label_from_filename(path: str) -> str:
         "cufft":   "CuPy (.py) RTX 3090 with C++ KERNELS",
         "cupy":    "CuPy (.py) RTX 3090",
         "cuda":    "CUDA C++ (.cu) RTX 3090",
+        "cu":      "CUDA C++ (.cu) RTX 3090 Optimized",
         "fortran": "FORTRAN (.f77) Apple M1 (OpenMP, 4 threads)",
         "numpy":   "NumPy (.py) Apple M1 (single thread)",
         "scipy":   "SciPy (.py) Apple M1 (4 workers)",
