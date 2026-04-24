@@ -54,10 +54,23 @@ def load_nf(filename: str) -> Tuple[List[int], List[float]]:
     return n_vals, fps_vals
 
 
+def fps_at_n(n_vals: List[int], fps_vals: List[float], target: int) -> float:
+    for n, f in zip(n_vals, fps_vals):
+        if n == target:
+            return f
+    # nearest N if exact not found
+    closest = min(range(len(n_vals)), key=lambda i: abs(n_vals[i] - target))
+    return fps_vals[closest]
+
+
 def main() -> None:
     files = sorted(glob(CSV_GLOB))
     if not files:
         raise SystemExit(f"No CSV files found matching {CSV_GLOB}")
+
+    # Load all data, then sort by FPS at N=4096 descending
+    data = [(fn, *load_nf(fn)) for fn in files]
+    data.sort(key=lambda t: fps_at_n(t[1], t[2], 4096), reverse=True)
 
     markers = ["o", "s", "^", "D", "v", "x", "*", "+"]
     linestyles = ["-", "--", "-.", ":", (0, (5, 1)), (0, (3, 1, 1, 1))]
@@ -68,9 +81,8 @@ def main() -> None:
     all_n_min = None
     all_n_max = None
 
-    for i, fn in enumerate(files):
-        n, fps = load_nf(fn)
-        lbl = label_from_filename(fn)
+    for i, (fn, n, fps) in enumerate(data):
+        lbl = f"{i + 1}. {label_from_filename(fn)}"
         m = markers[i % len(markers)]
         ls = linestyles[i % len(linestyles)]
 
